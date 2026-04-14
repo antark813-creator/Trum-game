@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>🃏 তাস - TRUM গেম</title>
+<link href="https://fonts.googleapis.com/css2?family=Tiro+Bangla&family=Cinzel+Decorative:wght@700&family=Nunito:wght@400;700;900&display=swap" rel="stylesheet"/>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  :root {
+    --gold: #ffd700;
+    --gold2: #ffb300;
+    --dark: #0a0a1a;
+    --dark2: #111128;
+    --green: #1a5c2a;
+    --green2: #0d3d1a;
+    --card-red: #cc2222;
+    --card-black: #111;
+    --team-a: #3b82f6;
+    --team-b: #ef4444;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--dark);
+    color: #fff;
+    font-family: 'Nunito', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Lobby ── */
+  #lobby {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at 50% 0%, #1a2a6c 0%, #0a0a1a 70%);
+    padding: 24px;
+  }
+  .lobby-title {
+    font-family: 'Cinzel Decorative', serif;
+    font-size: clamp(2rem, 8vw, 3.5rem);
+    color: var(--gold);
+    text-shadow: 0 0 40px rgba(255,215,0,0.5);
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .lobby-sub {
+    color: #aaa;
+    margin-bottom: 40px;
+    font-size: 1rem;
+    text-align: center;
+    font-family: 'Tiro Bangla', serif;
+  }
+  .lobby-card {
+    background: rgba(255,255,255,0.05);
+    border: 1.5px solid rgba(255,215,0,0.3);
+    border-radius: 20px;
+    padding: 32px;
+    width: 100%;
+    max-width: 420px;
+    backdrop-filter: blur(12px);
+  }
+  .field-label {
+    display: block;
+    color: var(--gold);
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .field-input {
+    width: 100%;
+    background: rgba(255,255,255,0.08);
+    border: 1.5px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    padding: 12px 16px;
+    color: #fff;
+    font-size: 1rem;
+    font-family: 'Nunito', sans-serif;
+    margin-bottom: 20px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .field-input:focus { border-color: var(--gold); }
+  .btn-primary {
+    width: 100%;
+    background: linear-gradient(135deg, #ffd700, #ff8c00);
+    color: #000;
+    border: none;
+    border-radius: 12px;
+    padding: 14px;
+    font-size: 1.1rem;
+    font-weight: 900;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    font-family: 'Nunito', sans-serif;
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(255,140,0,0.4); }
+  .btn-primary:active { transform: translateY(0); }
+  .waiting-msg {
+    margin-top: 24px;
+    text-align: center;
+    color: #aaa;
+    font-family: 'Tiro Bangla', serif;
+    font-size: 1rem;
+  }
+  .players-waiting {
+    margin-top: 16px;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .player-badge {
+    background: rgba(255,255,255,0.08);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .team-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .team-a-dot { background: var(--team-a); }
+  .team-b-dot { background: var(--team-b); }
+
+  /* ── Game Table ── */
+  #game { display: none; flex-direction: column; min-height: 100vh; }
+
+  .top-bar {
+    background: rgba(0,0,0,0.5);
+    border-bottom: 1px solid rgba(255,215,0,0.2);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .top-bar-title {
+    font-family: 'Cinzel Decorative', serif;
+    color: var(--gold);
+    font-size: 1.1rem;
+  }
+  .scores-bar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .score-pill {
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-weight: 900;
+    font-size: 0.9rem;
+  }
+  .score-a { background: rgba(59,130,246,0.25); border: 1.5px solid #3b82f6; color: #93c5fd; }
+  .score-b { background: rgba(239,68,68,0.25); border: 1.5px solid #ef4444; color: #fca5a5; }
+  .trump-badge {
+    background: rgba(255,215,0,0.15);
+    border: 1.5px solid var(--gold);
+    border-radius: 20px;
+    padding: 4px 14px;
+    color: var(--gold);
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+
+  /* ── Table ── */
+  .table-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: radial-gradient(ellipse at center, #1c4a29 0%, #0a2a14 100%);
+    position: relative;
+    min-height: 340px;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  /* Players around table */
+  .players-grid {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 8px;
+    align-items: start;
+  }
+  .player-slot {
+    background: rgba(0,0,0,0.4);
+    border-radius: 12px;
+    padding: 8px 12px;
+    text-align: center;
+    border: 2px solid transparent;
+    transition: border-color 0.3s, background 0.3s;
+    min-width: 90px;
+  }
+  .player-slot.active-turn {
+    border-color: var(--gold);
+    background: rgba(255,215,0,0.1);
+    box-shadow: 0 0 20px rgba(255,215,0,0.3);
+  }
+  .player-slot.team-a { border-color: rgba(59,130,246,0.4); }
+  .player-slot.team-b { border-color: rgba(239,68,68,0.4); }
+  .player-slot.active-turn.team-a { border-color: #3b82f6; background: rgba(59,130,246,0.15); }
+  .player-slot.active-turn.team-b { border-color: #ef4444; background: rgba(239,68,68,0.15); }
+  .player-name { font-weight: 700; font-size: 0.85rem; color: #fff; }
+  .player-team-tag {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+  .player-info-small { font-size: 0.72rem; color: #aaa; margin-top: 3px; }
+  .folded-tag { color: #ef4444; font-size: 0.7rem; font-weight: 700; }
+  .seen-tag { color: #22c55e; font-size: 0.7rem; }
+
+  /* Center trick area */
+  .trick-center {
+    background: rgba(0,0,0,0.25);
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 12px;
+    text-align: center;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .trick-cards {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .trick-info { font-size: 0.75rem; color: #aaa; }
+
+  /* ── Cards ── */
+  .card {
+    width: 58px; height: 82px;
+    border-radius: 8px;
+    background: linear-gradient(160deg, #fffdf0, #fff8d6);
+    border: 1.5px solid #e8d5a3;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    display: flex; flex-direction: column;
+    justify-content: space-between;
+    padding: 4px 5px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    flex-shrink: 0;
+    position: relative;
+    user-select: none;
+  }
+  .card:hover { transform: translateY(-8px); box-shadow: 0 12px 25px rgba(0,0,0,0.5); }
+  .card.selected { transform: translateY(-12px); box-shadow: 0 0 0 3px var(--gold), 0 12px 25px rgba(0,0,0,0.5); }
+  .card.red { color: var(--card-red); }
+  .card.black { color: var(--card-black); }
+  .card.trump-card { box-shadow: 0 0 0 2px var(--gold), 0 4px 12px rgba(0,0,0,0.4); }
+  .card-corner { font-size: 11px; font-weight: 800; line-height: 1.2; }
+  .card-suit-center { font-size: 22px; text-align: center; line-height: 1; }
+  .card-back {
+    width: 58px; height: 82px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #1a1a6e, #2d2d8e);
+    border: 2px solid var(--gold);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; flex-shrink: 0;
+  }
+  .card-small {
+    width: 42px; height: 60px;
+    border-radius: 6px; font-size: 9px;
+  }
+  .card-small .card-suit-center { font-size: 16px; }
+
+  /* ── My hand ── */
+  .my-hand-section {
+    background: rgba(0,0,0,0.5);
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding: 12px 16px;
+  }
+  .hand-label {
+    font-size: 0.75rem;
+    color: #aaa;
+    margin-bottom: 8px;
+    font-family: 'Tiro Bangla', serif;
+  }
+  .hand-cards {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+  .hand-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .btn-action {
+    padding: 8px 16px;
+    border-radius: 10px;
+    border: none;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: 'Nunito', sans-serif;
+  }
+  .btn-play { background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; }
+  .btn-seen { background: rgba(59,130,246,0.3); color: #93c5fd; border: 1px solid #3b82f6; }
+  .btn-reveal-trump { background: linear-gradient(135deg, #ffd700, #ff8c00); color: #000; }
+  .btn-pass { background: rgba(255,255,255,0.1); color: #aaa; border: 1px solid rgba(255,255,255,0.2); }
+  .btn-action:hover { transform: translateY(-1px); }
+  .btn-action:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* ── Calling Phase ── */
+  .calling-panel {
+    background: rgba(0,0,0,0.7);
+    border: 1.5px solid var(--gold);
+    border-radius: 16px;
+    padding: 20px;
+    text-align: center;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+  .calling-title {
+    font-family: 'Tiro Bangla', serif;
+    color: var(--gold);
+    font-size: 1.1rem;
+    margin-bottom: 16px;
+  }
+  .suit-selector {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .suit-btn {
+    width: 52px; height: 52px;
+    border-radius: 10px;
+    border: 2px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.05);
+    font-size: 1.6rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .suit-btn.selected-suit { border-color: var(--gold); background: rgba(255,215,0,0.15); transform: scale(1.1); }
+  .suit-btn.red-suit { color: #ef4444; }
+  .suit-btn.black-suit { color: #e0e0e0; }
+  .pit-selector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .pit-count {
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--gold);
+    min-width: 50px;
+    text-align: center;
+  }
+  .pit-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: 2px solid var(--gold);
+    background: transparent;
+    color: var(--gold);
+    font-size: 1.3rem;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+  }
+  .pit-btn:hover { background: rgba(255,215,0,0.2); }
+
+  /* ── Chat ── */
+  .chat-section {
+    border-top: 1px solid rgba(255,255,255,0.08);
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    flex-direction: column;
+    max-height: 160px;
+  }
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .chat-msg {
+    font-size: 0.8rem;
+    line-height: 1.4;
+    font-family: 'Tiro Bangla', serif;
+  }
+  .chat-msg.system { color: #ffd700; font-style: italic; text-align: center; }
+  .chat-msg.team-a .sender { color: #93c5fd; font-weight: 700; }
+  .chat-msg.team-b .sender { color: #fca5a5; font-weight: 700; }
+  .chat-input-row {
+    display: flex;
+    gap: 8px;
+    padding: 8px 12px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .chat-input {
+    flex: 1;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    padding: 7px 12px;
+    color: #fff;
+    font-size: 0.85rem;
+    font-family: 'Tiro Bangla', serif;
+    outline: none;
+  }
+  .chat-send {
+    background: var(--gold);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.85rem;
+  }
+
+  /* ── Round End Overlay ── */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(6px);
+  }
+  .overlay-card {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border: 2px solid var(--gold);
+    border-radius: 24px;
+    padding: 36px 28px;
+    text-align: center;
+    max-width: 380px;
+    width: 90%;
+    box-shadow: 0 0 60px rgba(255,215,0,0.2);
+  }
+  .overlay-title {
+    font-family: 'Cinzel Decorative', serif;
+    color: var(--gold);
+    font-size: 1.8rem;
+    margin-bottom: 8px;
+  }
+  .overlay-sub {
+    font-family: 'Tiro Bangla', serif;
+    color: #ccc;
+    margin-bottom: 20px;
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+  .score-table {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+  .score-box {
+    flex: 1;
+    padding: 14px;
+    border-radius: 12px;
+    text-align: center;
+  }
+  .score-box-a { background: rgba(59,130,246,0.2); border: 1.5px solid #3b82f6; }
+  .score-box-b { background: rgba(239,68,68,0.2); border: 1.5px solid #ef4444; }
+  .score-box-label { font-size: 0.8rem; font-weight: 700; letter-spacing: 1px; margin-bottom: 6px; }
+  .score-box-num { font-size: 2.2rem; font-weight: 900; }
+  .score-box-a .score-box-num { color: #93c5fd; }
+  .score-box-b .score-box-num { color: #fca5a5; }
+
+  /* Responsive */
+  @media (max-width: 480px) {
+    .card { width: 46px; height: 66px; }
+    .card-suit-center { font-size: 18px; }
+    .card-corner { font-size: 9px; }
+    .card-back { width: 46px; height: 66px; }
+  }
+
+  .hidden { display: none !important; }
+  .pulse { animation: pulse 1.5s infinite; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ LOBBY ═══ -->
+<div id="lobby">
+  <div class="lobby-title">🃏 TRUM</div>
+  <div class="lobby-sub">বাংলা তাস গেম • ৪ জন • অনলাইন</div>
+  <div class="lobby-card">
+    <label class="field-label">তোমার নাম</label>
+    <input class="field-input" id="playerName" placeholder="নাম লেখো..." maxlength="16"/>
+    <label class="field-label">Room ID</label>
+    <input class="field-input" id="roomId" placeholder="যেকোনো room code লেখো..." maxlength="10"/>
+    <button class="btn-primary" onclick="joinGame()">গেমে যোগ দাও</button>
+    <div class="waiting-msg hidden" id="waitingMsg">
+      অপেক্ষা করছি... <span id="playerCount">1</span>/4 জন যোগ দিয়েছে
+      <div class="players-waiting" id="playersWaiting"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ GAME ═══ -->
+<div id="game">
+  <!-- Top bar -->
+  <div class="top-bar">
+    <div class="top-bar-title">🃏 TRUM</div>
+    <div class="scores-bar">
+      <div class="score-pill score-a">Team A: <span id="scoreA">0</span></div>
+      <div class="score-pill score-b">Team B: <span id="scoreB">0</span></div>
+    </div>
+    <div id="trumpBadge" class="trump-badge hidden">Trump: <span id="trumpSuit">—</span></div>
+    <div id="pitInfo" style="font-size:0.8rem;color:#aaa;font-family:'Tiro Bangla',serif;"></div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-area">
+    <!-- Opponent top -->
+    <div style="display:flex;justify-content:center;">
+      <div class="player-slot" id="slot-top"></div>
+    </div>
+    <!-- Left / Center / Right -->
+    <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
+      <div class="player-slot" id="slot-left"></div>
+      <!-- Center trick -->
+      <div class="trick-center" id="trickCenter" style="flex:1;">
+        <div class="trick-info" id="trickInfo">এখানে খেলা হবে</div>
+        <div class="trick-cards" id="trickCards"></div>
+      </div>
+      <div class="player-slot" id="slot-right"></div>
+    </div>
+    <!-- Bottom (me) placeholder -->
+    <div style="height:8px;"></div>
+
+    <!-- CALLING PHASE -->
+    <div id="callingPhase" class="calling-panel hidden">
+      <div class="calling-title">Trump ও পিট ডাকো</div>
+      <div class="suit-selector" id="suitSelector">
+        <button class="suit-btn black-suit" onclick="selectSuit('♠')">♠</button>
+        <button class="suit-btn red-suit" onclick="selectSuit('♥')">♥</button>
+        <button class="suit-btn red-suit" onclick="selectSuit('♦')">♦</button>
+        <button class="suit-btn black-suit" onclick="selectSuit('♣')">♣</button>
+      </div>
+      <div class="pit-selector">
+        <button class="pit-btn" onclick="changePit(-1)">−</button>
+        <div class="pit-count" id="pitDisplay">4</div>
+        <button class="pit-btn" onclick="changePit(1)">+</button>
+      </div>
+      <div style="color:#aaa;font-size:0.75rem;margin-bottom:14px;font-family:'Tiro Bangla',serif;">
+        Min: 4 | Max: 9 | Bonus: 10-12
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn-action btn-pass" onclick="passCalling()" style="flex:1;">Pass</button>
+        <button class="btn-action btn-play" onclick="callTrump()" style="flex:1;">ডাকো ✓</button>
+      </div>
+    </div>
+
+    <!-- WAITING FOR CALL -->
+    <div id="waitingCall" class="hidden" style="text-align:center;color:#aaa;font-family:'Tiro Bangla',serif;font-size:0.95rem;padding:12px;">
+      অপেক্ষা করছি... অন্য কেউ ডাকছে
+    </div>
+  </div>
+
+  <!-- My Hand -->
+  <div class="my-hand-section">
+    <div class="hand-label" id="handLabel">তোমার হাত</div>
+    <div class="hand-cards" id="myCards"></div>
+    <div class="hand-actions" id="handActions"></div>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat-section">
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input-row">
+      <input class="chat-input" id="chatInput" placeholder="মেসেজ লেখো..." maxlength="120"
+        onkeydown="if(event.key==='Enter') sendChat()"/>
+      <button class="chat-send" onclick="sendChat()">পাঠাও</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ROUND END OVERLAY ═══ -->
+<div class="overlay hidden" id="roundEndOverlay">
+  <div class="overlay-card">
+    <div class="overlay-title" id="overlayTitle">রাউন্ড শেষ!</div>
+    <div class="overlay-sub" id="overlaySub"></div>
+    <div class="score-table">
+      <div class="score-box score-box-a">
+        <div class="score-box-label">TEAM A</div>
+        <div class="score-box-num" id="overScoreA">0</div>
+      </div>
+      <div class="score-box score-box-b">
+        <div class="score-box-label">TEAM B</div>
+        <div class="score-box-num" id="overScoreB">0</div>
+      </div>
+    </div>
+    <button class="btn-primary" id="nextRoundBtn" onclick="nextRound()">পরের রাউন্ড ▶</button>
+  </div>
+</div>
+
+<script>
+// ═══ State ═══
+let socket, myId, myTeam, roomIdGlobal;
+let gs = null; // gameState
+let selectedCard = null;
+let selectedSuit = null;
+let selectedPit = 4;
+
+// ═══ Lobby ═══
+function joinGame() {
+  const name = document.getElementById('playerName').value.trim();
+  const room = document.getElementById('roomId').value.trim().toUpperCase();
+  if (!name || !room) { alert('নাম ও Room ID দাও!'); return; }
+
+  socket = io();
+  roomIdGlobal = room;
+
+  socket.on('connect', () => {
+    socket.emit('joinRoom', { roomId: room, playerName: name });
+  });
+
+  socket.on('joined', ({ playerId, team }) => {
+    myId = playerId;
+    myTeam = team;
+    document.getElementById('lobby').style.display = 'none';
+    document.getElementById('game').style.display = 'flex';
+  });
+
+  socket.on('playerJoined', ({ name: n, count, team }) => {
+    document.getElementById('waitingMsg').classList.remove('hidden');
+    document.getElementById('playerCount').textContent = count;
+  });
+
+  socket.on('gameState', (state) => {
+    gs = state;
+    render();
+  });
+
+  socket.on('error', (msg) => alert(msg));
+}
+
+// ═══ Card helpers ═══
+function isRed(suit) { return suit === '♥' || suit === '♦'; }
+
+function cardEl(card, small = false, clickable = false, isTrump = false) {
+  const div = document.createElement('div');
+  div.className = `card${small ? ' card-small' : ''}${isRed(card.suit) ? ' red' : ' black'}${isTrump ? ' trump-card' : ''}`;
+  if (clickable) {
+    div.onclick = () => selectCard(card, div);
+  }
+  const corner1 = document.createElement('div');
+  corner1.className = 'card-corner';
+  corner1.textContent = `${card.rank}\n${card.suit}`;
+  const center = document.createElement('div');
+  center.className = 'card-suit-center';
+  center.textContent = card.suit;
+  const corner2 = document.createElement('div');
+  corner2.className = 'card-corner';
+  corner2.style.transform = 'rotate(180deg)';
+  corner2.style.alignSelf = 'flex-end';
+  corner2.textContent = `${card.rank}\n${card.suit}`;
+  div.appendChild(corner1);
+  div.appendChild(center);
+  div.appendChild(corner2);
+  return div;
+}
+
+function cardBackEl(small = false) {
+  const div = document.createElement('div');
+  div.className = `card-back${small ? ' card-small' : ''}`;
+  div.textContent = '🂠';
+  return div;
+}
+
+function selectCard(card, el) {
+  if (!gs || gs.phase !== 'playing') return;
+  const myIdx = gs.players.findIndex(p => p.id === myId);
+  if (myIdx !== gs.currentTurn) return;
+
+  document.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected'));
+  if (selectedCard && selectedCard.suit === card.suit && selectedCard.rank === card.rank) {
+    selectedCard = null;
+  } else {
+    selectedCard = card;
+    el.classList.add('selected');
+  }
+  renderActions();
+}
+
+// ═══ Main Render ═══
+function render() {
+  if (!gs) return;
+  renderScores();
+  renderTrump();
+  renderPlayers();
+  renderTrick();
+  renderMyCards();
+  renderCallingPhase();
+  renderActions();
+  renderChat();
+  renderOverlay();
+}
+
+function renderScores() {
+  document.getElementById('scoreA').textContent = gs.teamScores.A;
+  document.getElementById('scoreB').textContent = gs.teamScores.B;
+  if (gs.pit) {
+    document.getElementById('pitInfo').textContent = `ডাক: ${gs.pit} পিট`;
+  }
+}
+
+function renderTrump() {
+  const badge = document.getElementById('trumpBadge');
+  if (gs.trump && gs.trumpRevealed) {
+    badge.classList.remove('hidden');
+    document.getElementById('trumpSuit').textContent = gs.trump;
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+function renderPlayers() {
+  // Figure positions: me = bottom, others around
+  const me = gs.players.find(p => p.id === myId);
+  if (!me) return;
+  const myIdx = gs.players.indexOf(me);
+  // Positions: top = opposite (myIdx+2), left = myIdx+1, right = myIdx+3
+  const opp = gs.players[(myIdx + 2) % 4];
+  const left = gs.players[(myIdx + 1) % 4];
+  const right = gs.players[(myIdx + 3) % 4];
+
+  renderSlot('slot-top', opp);
+  renderSlot('slot-left', left);
+  renderSlot('slot-right', right);
+}
+
+function renderSlot(id, player) {
+  if (!player) return;
+  const slot = document.getElementById(id);
+  const isActive = gs.players.findIndex(p => p.id === player.id) === gs.currentTurn && gs.phase === 'playing';
+  slot.className = `player-slot team-${player.team.toLowerCase()}${isActive ? ' active-turn' : ''}`;
+  const teamColor = player.team === 'A' ? '#93c5fd' : '#fca5a5';
+  slot.innerHTML = `
+    <div class="player-name">${player.name}</div>
+    <div class="player-team-tag" style="color:${teamColor}">Team ${player.team}</div>
+    <div class="player-info-small">${player.cardCount} কার্ড</div>
+    ${player.isSeen ? '<div class="seen-tag">👁 Seen</div>' : '<div style="font-size:0.7rem;color:#666;">Blind</div>'}
+    ${player.folded ? '<div class="folded-tag">✗ Fold</div>' : ''}
+    ${isActive ? '<div style="font-size:0.7rem;color:#ffd700;" class="pulse">▶ তার পালা</div>' : ''}
+  `;
+}
+
+function renderTrick() {
+  const cards = document.getElementById('trickCards');
+  const info = document.getElementById('trickInfo');
+  cards.innerHTML = '';
+  if (!gs.currentTrick || gs.currentTrick.length === 0) {
+    info.textContent = gs.phase === 'playing' ? 'কার্ড খেলা শুরু হয়নি' : '';
+    return;
+  }
+  info.textContent = '';
+  gs.currentTrick.forEach(play => {
+    const p = gs.players.find(pl => pl.id === play.playerId);
+    const wrapper = document.createElement('div');
+    wrapper.style.textAlign = 'center';
+    const isTrump = play.card.suit === gs.trumpSuit && gs.trumpRevealed;
+    wrapper.appendChild(cardEl(play.card, true, false, isTrump));
+    const label = document.createElement('div');
+    label.style.cssText = 'font-size:0.65rem;color:#aaa;margin-top:3px;';
+    label.textContent = p ? p.name : '';
+    wrapper.appendChild(label);
+    cards.appendChild(wrapper);
+  });
+
+  if (gs.trickWinner && gs.currentTrick.length === 4) {
+    const w = gs.players.find(p => p.id === gs.trickWinner);
+    if (w) info.textContent = `✓ ${w.name} জিতলেন!`;
+  }
+}
+
+function renderMyCards() {
+  const container = document.getElementById('myCards');
+  container.innerHTML = '';
+  if (!gs.myCards || gs.myCards.length === 0) return;
+
+  const isMyTurn = gs.players.findIndex(p => p.id === myId) === gs.currentTurn && gs.phase === 'playing';
+  const myPlayer = gs.players.find(p => p.id === myId);
+  const isSeen = myPlayer && myPlayer.isSeen;
+
+  // Sort: trump last, then by suit then rank
+  const sorted = [...gs.myCards].sort((a, b) => {
+    if (a.suit === gs.trumpSuit && b.suit !== gs.trumpSuit) return 1;
+    if (b.suit === gs.trumpSuit && a.suit !== gs.trumpSuit) return -1;
+    if (a.suit !== b.suit) return a.suit.localeCompare(b.suit);
+    return ['2','3','4','5','6','7','8','9','10','J','Q','K','A'].indexOf(a.rank) -
+           ['2','3','4','5','6','7','8','9','10','J','Q','K','A'].indexOf(b.rank);
+  });
+
+  sorted.forEach(card => {
+    const isTrump = card.suit === gs.trumpSuit && gs.trumpRevealed;
+    const el = cardEl(card, false, isMyTurn, isTrump);
+    if (selectedCard && selectedCard.suit === card.suit && selectedCard.rank === card.rank) {
+      el.classList.add('selected');
+    }
+    container.appendChild(el);
+  });
+
+  const label = document.getElementById('handLabel');
+  label.textContent = `তোমার হাত (${gs.myCards.length} কার্ড)${isMyTurn ? ' — তোমার পালা!' : ''}`;
+  label.style.color = isMyTurn ? '#ffd700' : '#aaa';
+}
+
+function renderCallingPhase() {
+  const calling = document.getElementById('callingPhase');
+  const waiting = document.getElementById('waitingCall');
+  if (gs.phase !== 'calling') {
+    calling.classList.add('hidden');
+    waiting.classList.add('hidden');
+    return;
+  }
+  const myIdx = gs.players.findIndex(p => p.id === myId);
+  const isMyCall = myIdx === gs.callTurn;
+  if (isMyCall) {
+    calling.classList.remove('hidden');
+    waiting.classList.add('hidden');
+    // Set min pit
+    selectedPit = Math.max(4, (gs.calledPit || 3) + 1);
+    document.getElementById('pitDisplay').textContent = selectedPit;
+  } else {
+    calling.classList.add('hidden');
+    waiting.classList.remove('hidden');
+    const caller = gs.players[gs.callTurn];
+    waiting.textContent = caller ? `${caller.name} ডাকছেন...` : 'অপেক্ষা করছি...';
+  }
+}
+
+function renderActions() {
+  const container = document.getElementById('handActions');
+  container.innerHTML = '';
+  if (!gs) return;
+
+  const myIdx = gs.players.findIndex(p => p.id === myId);
+  const isMyTurn = myIdx === gs.currentTurn && gs.phase === 'playing';
+  const myPlayer = gs.players.find(p => p.id === myId);
+  const isSeen = myPlayer && myPlayer.isSeen;
+
+  // Seen button
+  if (!isSeen && gs.phase === 'playing') {
+    const btn = document.createElement('button');
+    btn.className = 'btn-action btn-seen';
+    btn.textContent = '👁 Seen হও';
+    btn.onclick = setSeen;
+    container.appendChild(btn);
+  }
+
+  // Reveal trump (caller only)
+  if (gs.calledBy === myId && !gs.trumpRevealed && gs.phase === 'playing') {
+    const btn = document.createElement('button');
+    btn.className = 'btn-action btn-reveal-trump';
+    btn.textContent = '🏴 Trump দেখাও';
+    btn.onclick = revealTrump;
+    container.appendChild(btn);
+  }
+
+  // Play card button
+  if (isMyTurn) {
+    const btn = document.createElement('button');
+    btn.className = 'btn-action btn-play';
+    btn.textContent = selectedCard ? `▶ কার্ড খেলো (${selectedCard.rank}${selectedCard.suit})` : 'কার্ড বেছে নাও';
+    btn.disabled = !selectedCard;
+    btn.onclick = playCard;
+    container.appendChild(btn);
+  }
+}
+
+function renderChat() {
+  const container = document.getElementById('chatMessages');
+  if (!gs.messages) return;
+  container.innerHTML = '';
+  gs.messages.slice(-30).forEach(msg => {
+    const div = document.createElement('div');
+    if (msg.type === 'system') {
+      div.className = 'chat-msg system';
+      div.textContent = msg.text;
+    } else {
+      div.className = `chat-msg team-${msg.team.toLowerCase()}`;
+      div.innerHTML = `<span class="sender">${msg.sender}:</span> ${msg.text}`;
+    }
+    container.appendChild(div);
+  });
+  container.scrollTop = container.scrollHeight;
+}
+
+function renderOverlay() {
+  const overlay = document.getElementById('roundEndOverlay');
+  if (gs.phase === 'roundEnd' || gs.gameOver) {
+    overlay.classList.remove('hidden');
+    document.getElementById('overScoreA').textContent = gs.teamScores.A;
+    document.getElementById('overScoreB').textContent = gs.teamScores.B;
+
+    if (gs.gameOver) {
+      document.getElementById('overlayTitle').textContent = '🏆 গেম শেষ!';
+      document.getElementById('overlaySub').textContent = `Team ${gs.gameWinner} জিতেছে! ৫০ পয়েন্ট!`;
+      document.getElementById('nextRoundBtn').textContent = 'নতুন গেম ▶';
+    } else {
+      document.getElementById('overlayTitle').textContent = 'রাউন্ড শেষ!';
+      if (gs.roundResult) {
+        const r = gs.roundResult;
+        document.getElementById('overlaySub').textContent =
+          `Team ${r.callerTeam} ডেকেছিল ${r.calledPit} পিট, পেয়েছে ${r.callerTeamTricks} পিট`;
+      }
+      document.getElementById('nextRoundBtn').textContent = 'পরের রাউন্ড ▶';
+    }
+  } else {
+    overlay.classList.add('hidden');
+  }
+}
+
+// ═══ Actions ═══
+function selectSuit(suit) {
+  selectedSuit = suit;
+  document.querySelectorAll('.suit-btn').forEach(b => b.classList.remove('selected-suit'));
+  event.target.classList.add('selected-suit');
+}
+
+function changePit(delta) {
+  const min = gs && gs.calledPit ? gs.calledPit + 1 : 4;
+  selectedPit = Math.min(12, Math.max(min, selectedPit + delta));
+  document.getElementById('pitDisplay').textContent = selectedPit;
+}
+
+function callTrump() {
+  if (!selectedSuit) { alert('Trump suit বেছে নাও!'); return; }
+  socket.emit('callTrump', { roomId: roomIdGlobal, playerId: myId, trump: selectedSuit, pit: selectedPit });
+}
+
+function passCalling() {
+  socket.emit('passCalling', { roomId: roomIdGlobal, playerId: myId });
+}
+
+function setSeen() {
+  socket.emit('setSeen', { roomId: roomIdGlobal, playerId: myId });
+}
+
+function revealTrump() {
+  socket.emit('revealTrump', { roomId: roomIdGlobal, playerId: myId });
+}
+
+function playCard() {
+  if (!selectedCard) return;
+  socket.emit('playCard', { roomId: roomIdGlobal, playerId: myId, card: selectedCard });
+  selectedCard = null;
+}
+
+function sendChat() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  socket.emit('chatMessage', { roomId: roomIdGlobal, playerId: myId, text });
+  input.value = '';
+}
+
+function nextRound() {
+  socket.emit('nextRound', { roomId: roomIdGlobal });
+  document.getElementById('roundEndOverlay').classList.add('hidden');
+}
+</script>
+</body>
+</html>
